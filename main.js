@@ -205,9 +205,8 @@ function startApprovalServer() {
   approvalServer = new ApprovalServer();
   approvalServer.start();
 
-  // Initialize admin dashboard
-  const AdminDashboard = require("./server/admin-dashboard");
-  new AdminDashboard(approvalServer);
+  // Store WebSocket server reference for notifications
+  global.wsServer = approvalServer.getWebSocketServer();
 }
 
 // Validate username format to prevent command injection
@@ -351,10 +350,33 @@ ipcMain.handle("request-privileges", async (event, requestData) => {
     // Save request to file
     await saveRequest(request);
 
-    // Send email notification to sysadmin
-    await sendRequestEmail(request);
+    // Auto-generate security tokens for the request
+    const TokenManager = require("./server/token-manager");
+    const tokenManager = TokenManager.getTokenManager();
 
-    return { success: true, requestId: request.id };
+    const approvalToken = tokenManager.generateSecureToken(
+      request.id,
+      "approve"
+    );
+    const denyToken = tokenManager.generateSecureToken(request.id, "deny");
+
+    // Add tokens to request for WebSocket notification
+    request.approvalToken = approvalToken.token;
+    request.denyToken = denyToken.token;
+
+    // Notify admin dashboard via WebSocket
+    await notifyAdminDashboard(request);
+
+    return {
+      success: true,
+      requestId: request.id,
+      // Include tokens in response (for debugging/logging purposes)
+      tokens: {
+        approvalToken: approvalToken.token,
+        denyToken: denyToken.token,
+        expiresAt: approvalToken.expiresAt,
+      },
+    };
   } catch (error) {
     logger.error("Error submitting request", {
       error: error.message,
@@ -409,10 +431,14 @@ ipcMain.handle("get-all-requests", async (event, filters = {}) => {
 
 // Save request to file with atomic write and locking
 async function saveRequest(request) {
-  const requestsFile = path.join(app.getPath("userData"), "requests.json");
+  const userDataDir = app.getPath("userData");
+  const requestsFile = path.join(userDataDir, "requests.json");
   let release = null;
 
   try {
+    // Ensure the directory exists before trying to lock/write
+    await fs.mkdir(userDataDir, { recursive: true });
+
     // Lock file before writing
     release = await lockfile.lock(requestsFile, {
       retries: {
@@ -452,9 +478,13 @@ async function saveRequest(request) {
 
 // Load requests from file
 async function loadRequests() {
-  const requestsFile = path.join(app.getPath("userData"), "requests.json");
+  const userDataDir = app.getPath("userData");
+  const requestsFile = path.join(userDataDir, "requests.json");
 
   try {
+    // Ensure the directory exists
+    await fs.mkdir(userDataDir, { recursive: true });
+
     // Try to acquire lock with short timeout (read operation)
     const release = await lockfile.lock(requestsFile, {
       retries: {
@@ -487,10 +517,14 @@ async function loadRequests() {
 
 // Update request status with atomic write
 async function updateRequestStatus(requestId, status, expiresAt = null) {
-  const requestsFile = path.join(app.getPath("userData"), "requests.json");
+  const userDataDir = app.getPath("userData");
+  const requestsFile = path.join(userDataDir, "requests.json");
   let release = null;
 
   try {
+    // Ensure the directory exists before trying to lock/write
+    await fs.mkdir(userDataDir, { recursive: true });
+
     // Lock file before writing
     release = await lockfile.lock(requestsFile, {
       retries: {
@@ -527,6 +561,11 @@ async function updateRequestStatus(requestId, status, expiresAt = null) {
         requestId,
         status,
       });
+    }
+
+    // Notify WebSocket clients about status update
+    if (global.wsServer) {
+      global.wsServer.notifyRequestStatusUpdate(requestId, status);
     }
 
     // Send desktop notification
@@ -621,6 +660,48 @@ ipcMain.handle("grant-privileges", async (event, requestId) => {
 global.updateRequestStatus = updateRequestStatus;
 global.loadRequests = loadRequests;
 
+/**
+ * Notify admin dashboard via WebSocket about new request
+ * Tokens are auto-generated in the request-privileges handler
+ */
+async function notifyAdminDashboard(request) {
+  try {
+    if (global.wsServer) {
+      // Notify all connected admin dashboard clients
+      global.wsServer.notifyNewRequest({
+        id: request.id,
+        username: request.username,
+        fullName: request.fullName,
+        duration: request.duration,
+        reason: request.reason,
+        timestamp: request.timestamp,
+        status: request.status,
+        approvalToken: request.approvalToken,
+        denyToken: request.denyToken,
+      });
+
+      logger.info("New request notified via WebSocket", {
+        requestId: request.id,
+        connectedClients: global.wsServer.getConnectedClientsCount(),
+      });
+    } else {
+      logger.warn(
+        "WebSocket server not available, request notification skipped",
+        {
+          requestId: request.id,
+        }
+      );
+    }
+  } catch (error) {
+    logger.error("Error notifying admin dashboard", {
+      error: error.message,
+      requestId: request.id,
+    });
+    // Don't throw - WebSocket notification failure shouldn't block request creation
+  }
+}
+
+// Legacy function name for backwards compatibility (deprecated - use notifyAdminDashboard)
 async function sendRequestEmail(request) {
   if (!SMTP_HOST || !SMTP_USER || !SMTP_PASS) {
     throw new Error(

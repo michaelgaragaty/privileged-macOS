@@ -5,6 +5,7 @@
   "main": "main.js",
   "scripts": {
     "start": "electron .",
+    "start:dashboard": "node admin-dashboard.js",
     "build": "electron-builder",
     "install-helper": "sudo node helper/install-helper.js"
   },
@@ -31,7 +32,8 @@
     "speakeasy": "^2.0.0",
     "sudo-prompt": "^9.2.1",
     "uuid": "^9.0.1",
-    "winston": "^3.11.0"
+    "winston": "^3.11.0",
+    "ws": "^8.18.3"
   },
   "devDependencies": {
     "electron": "^27.0.0",

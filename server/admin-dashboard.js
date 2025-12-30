@@ -84,7 +84,9 @@ class AdminDashboard {
     // Get pending requests
     apiRouter.get("/requests/pending", requireAuth, async (req, res) => {
       try {
-        const requests = await global.loadRequests();
+        const { getRequestsManager } = require("./requests-manager");
+        const requestsManager = getRequestsManager();
+        const requests = await requestsManager.loadRequests();
         const pending = requests.filter(
           (r) => r.status === "pending" || r.status === "approved"
         );
@@ -98,7 +100,9 @@ class AdminDashboard {
     // Get all requests
     apiRouter.get("/requests", requireAuth, async (req, res) => {
       try {
-        const requests = await global.loadRequests();
+        const { getRequestsManager } = require("./requests-manager");
+        const requestsManager = getRequestsManager();
+        const requests = await requestsManager.loadRequests();
         res.json({ success: true, requests });
       } catch (error) {
         logger.error("Error fetching requests", { error: error.message });
@@ -112,7 +116,9 @@ class AdminDashboard {
       const ipAddress = this.getClientIp(req);
 
       try {
-        await global.updateRequestStatus(requestId, "approved");
+        const { getRequestsManager } = require("./requests-manager");
+        const requestsManager = getRequestsManager();
+        await requestsManager.updateRequestStatus(requestId, "approved");
         await auditLogger.logRequestApproval(requestId, req.session.user || "admin", ipAddress);
 
         logger.info("Request approved via dashboard", { requestId, ipAddress });
@@ -131,7 +137,9 @@ class AdminDashboard {
       const ipAddress = this.getClientIp(req);
 
       try {
-        await global.updateRequestStatus(requestId, "denied");
+        const { getRequestsManager } = require("./requests-manager");
+        const requestsManager = getRequestsManager();
+        await requestsManager.updateRequestStatus(requestId, "denied");
         await auditLogger.logRequestDenial(requestId, req.session.user || "admin", ipAddress, reason);
 
         logger.info("Request denied via dashboard", { requestId, ipAddress, reason });
