@@ -50,6 +50,9 @@ class ConfigManager {
 
       // Environment
       nodeEnv: process.env.NODE_ENV || "development",
+
+      // Dashboard WebSocket URL (for app to connect to dashboard)
+      dashboardWebSocketUrl: process.env.DASHBOARD_WEBSOCKET_URL || "ws://localhost:3000/ws",
     };
   }
 

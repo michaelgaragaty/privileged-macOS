@@ -30,7 +30,6 @@ if (dotenvResult.error) {
 const logger = require("./server/logger");
 
 let mainWindow;
-let approvalServer;
 
 // Validate environment variables
 function validateEnvironment() {
@@ -177,7 +176,7 @@ app.whenReady().then(async () => {
   }
 
   createWindow();
-  startApprovalServer();
+  connectToDashboard();
   await restoreActivePrivileges();
 
   app.on("activate", () => {
@@ -194,19 +193,42 @@ app.on("window-all-closed", () => {
 });
 
 app.on("will-quit", () => {
-  if (approvalServer) {
-    approvalServer.close();
+  // Disconnect WebSocket client
+  if (global.wsClient) {
+    global.wsClient.disconnect();
   }
 });
 
-// Start the approval server
-function startApprovalServer() {
-  const ApprovalServer = require("./server/approval-server");
-  approvalServer = new ApprovalServer();
-  approvalServer.start();
+// Connect to admin dashboard via WebSocket
+function connectToDashboard() {
+  const { getWebSocketClient } = require("./client/websocket-client");
+  const wsClient = getWebSocketClient();
 
-  // Store WebSocket server reference for notifications
-  global.wsServer = approvalServer.getWebSocketServer();
+  // Connect to dashboard
+  wsClient.connect();
+
+  // Set up heartbeat to keep connection alive
+  setInterval(() => {
+    wsClient.ping();
+  }, 30000); // Every 30 seconds
+
+  // Handle request status updates from dashboard
+  wsClient.on("request_status_update", (data) => {
+    if (data && data.requestId && data.status) {
+      // Notify renderer about status update
+      if (mainWindow) {
+        mainWindow.webContents.send("request-status-updated", {
+          requestId: data.requestId,
+          status: data.status,
+        });
+      }
+    }
+  });
+
+  // Store client reference globally
+  global.wsClient = wsClient;
+
+  logger.info("WebSocket client initialized for dashboard connection");
 }
 
 // Validate username format to prevent command injection
@@ -563,10 +585,8 @@ async function updateRequestStatus(requestId, status, expiresAt = null) {
       });
     }
 
-    // Notify WebSocket clients about status update
-    if (global.wsServer) {
-      global.wsServer.notifyRequestStatusUpdate(requestId, status);
-    }
+    // Status updates are handled by the dashboard and sent back via WebSocket
+    // No need to notify here as the dashboard will broadcast to all clients
 
     // Send desktop notification
     if (Notification.isSupported()) {
@@ -666,9 +686,9 @@ global.loadRequests = loadRequests;
  */
 async function notifyAdminDashboard(request) {
   try {
-    if (global.wsServer) {
-      // Notify all connected admin dashboard clients
-      global.wsServer.notifyNewRequest({
+    if (global.wsClient && global.wsClient.isConnected()) {
+      // Send new request notification to dashboard
+      const sent = global.wsClient.notifyNewRequest({
         id: request.id,
         username: request.username,
         fullName: request.fullName,
@@ -680,13 +700,18 @@ async function notifyAdminDashboard(request) {
         denyToken: request.denyToken,
       });
 
-      logger.info("New request notified via WebSocket", {
-        requestId: request.id,
-        connectedClients: global.wsServer.getConnectedClientsCount(),
-      });
+      if (sent) {
+        logger.info("New request notified to dashboard via WebSocket", {
+          requestId: request.id,
+        });
+      } else {
+        logger.warn("Failed to send request notification to dashboard", {
+          requestId: request.id,
+        });
+      }
     } else {
       logger.warn(
-        "WebSocket server not available, request notification skipped",
+        "WebSocket client not connected to dashboard, request notification skipped",
         {
           requestId: request.id,
         }

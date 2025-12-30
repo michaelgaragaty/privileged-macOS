@@ -35,6 +35,7 @@ class WebSocketServer {
 
       ws.clientId = clientId;
       ws.isAuthenticated = false;
+      ws.isAppClient = false; // Track if this is an app client vs admin dashboard client
       ws.ipAddress = ipAddress;
 
       this.clients.set(clientId, ws);
@@ -97,6 +98,11 @@ class WebSocketServer {
           await this.handleAuthenticate(ws, data);
           break;
 
+        case "new_request":
+          // Handle new request from app client
+          await this.handleNewRequestFromApp(ws, data);
+          break;
+
         case "get_pending_requests":
           await this.handleGetPendingRequests(ws);
           break;
@@ -123,6 +129,70 @@ class WebSocketServer {
         clientId: ws.clientId,
       });
       this.sendError(ws, error.message);
+    }
+  }
+
+  /**
+   * Handle new request from app client
+   */
+  async handleNewRequestFromApp(ws, data) {
+    // Mark as app client (no authentication required for app clients)
+    ws.isAppClient = true;
+
+    try {
+      // Store app instance info (username from request)
+      ws.appUsername = data?.username || "unknown";
+      ws.appInstanceId = ws.clientId; // Use clientId as instance identifier
+
+      // Save request to shared storage
+      const { getRequestsManager } = require("./requests-manager");
+      const requestsManager = getRequestsManager();
+      
+      // Create request object
+      const request = {
+        id: data.id,
+        username: data.username,
+        fullName: data.fullName,
+        duration: data.duration,
+        reason: data.reason,
+        timestamp: data.timestamp,
+        status: data.status || "pending",
+        approvalToken: data.approvalToken,
+        denyToken: data.denyToken,
+        appInstanceId: ws.appInstanceId, // Track which app instance sent this
+      };
+
+      // Save to file
+      await requestsManager.saveRequest(request);
+
+      // Broadcast to all authenticated admin dashboard clients
+      this.broadcastToAdmins({
+        type: "new_request",
+        data: request,
+      });
+
+      const clientCounts = this.getConnectedClientsCount();
+      logger.info("New request received from app client", {
+        requestId: data?.id,
+        clientId: ws.clientId,
+        username: data?.username,
+        appInstanceId: ws.appInstanceId,
+        totalAppClients: clientCounts.appClients,
+        totalClients: clientCounts.total,
+      });
+
+      // Acknowledge receipt
+      this.sendToClient(ws, {
+        type: "request_received",
+        requestId: data?.id,
+        message: "Request received and forwarded to admin dashboard",
+      });
+    } catch (error) {
+      logger.error("Error handling new request from app", {
+        error: error.message,
+        clientId: ws.clientId,
+      });
+      this.sendError(ws, "Failed to process request");
     }
   }
 
@@ -219,8 +289,8 @@ class WebSocketServer {
         {}
       );
 
-      // Notify all connected clients
-      this.broadcast({
+      // Notify all connected clients (including all app instances)
+      this.broadcastToAll({
         type: "request_approved",
         data: { requestId },
       });
@@ -272,8 +342,8 @@ class WebSocketServer {
 
       auditLogger.log("request_denied", "admin", requestId, ws.ipAddress, {});
 
-      // Notify all connected clients
-      this.broadcast({
+      // Notify all connected clients (including all app instances)
+      this.broadcastToAll({
         type: "request_denied",
         data: { requestId },
       });
@@ -351,10 +421,78 @@ class WebSocketServer {
   }
 
   /**
+   * Broadcast message to all authenticated admin clients (not app clients)
+   */
+  broadcastToAdmins(message) {
+    const data = JSON.stringify(message);
+    let sent = 0;
+
+    for (const [clientId, ws] of this.clients.entries()) {
+      if (
+        ws.isAuthenticated &&
+        !ws.isAppClient &&
+        ws.readyState === WebSocket.OPEN
+      ) {
+        try {
+          ws.send(data);
+          sent++;
+        } catch (error) {
+          logger.error("Error broadcasting to admin client", {
+            error: error.message,
+            clientId,
+          });
+        }
+      }
+    }
+
+    if (sent > 0) {
+      logger.debug(`Broadcasted message to ${sent} admin clients`, {
+        type: message.type,
+      });
+    }
+  }
+
+  /**
+   * Broadcast message to ALL connected clients (both app clients and admin clients)
+   * Used for status updates that need to reach all app instances
+   */
+  broadcastToAll(message) {
+    const data = JSON.stringify(message);
+    let sent = 0;
+    let appClients = 0;
+    let adminClients = 0;
+
+    for (const [clientId, ws] of this.clients.entries()) {
+      if (ws.readyState === WebSocket.OPEN) {
+        try {
+          ws.send(data);
+          sent++;
+          if (ws.isAppClient) {
+            appClients++;
+          } else if (ws.isAuthenticated) {
+            adminClients++;
+          }
+        } catch (error) {
+          logger.error("Error broadcasting to client", {
+            error: error.message,
+            clientId,
+          });
+        }
+      }
+    }
+
+    if (sent > 0) {
+      logger.debug(`Broadcasted message to ${sent} clients (${appClients} app, ${adminClients} admin)`, {
+        type: message.type,
+      });
+    }
+  }
+
+  /**
    * Notify clients about new request
    */
   notifyNewRequest(request) {
-    this.broadcast({
+    this.broadcastToAdmins({
       type: "new_request",
       data: request,
     });
@@ -362,9 +500,10 @@ class WebSocketServer {
 
   /**
    * Notify clients about request status update
+   * Broadcasts to ALL clients (all app instances and admin dashboard)
    */
   notifyRequestStatusUpdate(requestId, status) {
-    this.broadcast({
+    this.broadcastToAll({
       type: "request_status_update",
       data: { requestId, status },
     });
@@ -374,9 +513,14 @@ class WebSocketServer {
    * Get connected clients count
    */
   getConnectedClientsCount() {
-    return Array.from(this.clients.values()).filter(
+    const allClients = Array.from(this.clients.values()).filter(
       (ws) => ws.readyState === WebSocket.OPEN
-    ).length;
+    );
+    return {
+      total: allClients.length,
+      appClients: allClients.filter((ws) => ws.isAppClient).length,
+      adminClients: allClients.filter((ws) => ws.isAuthenticated && !ws.isAppClient).length,
+    };
   }
 
   /**

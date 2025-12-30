@@ -295,15 +295,7 @@ class ApprovalServer {
         port: this.port,
         url: `http://localhost:${this.port}`,
       });
-
-      // Initialize WebSocket server
-      const WebSocketServer = require("./websocket-server");
-      this.wsServer = new WebSocketServer(this.server);
     });
-  }
-
-  getWebSocketServer() {
-    return this.wsServer;
   }
 
   close() {
