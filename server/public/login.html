@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Login - macOS Privileges Manager</title>
+    <link rel="stylesheet" href="admin.css">
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-card">
+            <h1>🔐 Admin Login</h1>
+            <form id="loginForm">
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" required autofocus>
+                </div>
+                <div class="form-group" id="2faGroup" style="display: none;">
+                    <label for="twoFactorToken">2FA Code</label>
+                    <input type="text" id="twoFactorToken" placeholder="000000" maxlength="6">
+                </div>
+                <button type="submit" class="btn btn-primary">Login</button>
+                <div id="errorMessage" class="error-message" style="display: none;"></div>
+            </form>
+        </div>
+    </div>
+    <script src="admin.js"></script>
+</body>
+</html>
+

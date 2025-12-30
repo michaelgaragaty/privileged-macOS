@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - macOS Privileges Manager</title>
+    <link rel="stylesheet" href="admin.css">
+</head>
+<body>
+    <div class="dashboard-container">
+        <header class="dashboard-header">
+            <h1>Admin Dashboard</h1>
+            <button id="logoutBtn" class="btn btn-secondary">Logout</button>
+        </header>
+        
+        <nav class="dashboard-nav">
+            <button class="nav-btn active" data-view="requests">Pending Requests</button>
+            <button class="nav-btn" data-view="history">Request History</button>
+            <button class="nav-btn" data-view="audit">Audit Logs</button>
+            <button class="nav-btn" data-view="settings">Settings</button>
+        </nav>
+
+        <main class="dashboard-content">
+            <!-- Pending Requests View -->
+            <div id="requestsView" class="view active">
+                <h2>Pending Requests</h2>
+                <div id="requestsList" class="requests-list"></div>
+            </div>
+
+            <!-- Request History View -->
+            <div id="historyView" class="view">
+                <h2>Request History</h2>
+                <div class="filters">
+                    <select id="statusFilter">
+                        <option value="">All Statuses</option>
+                        <option value="pending">Pending</option>
+                        <option value="approved">Approved</option>
+                        <option value="denied">Denied</option>
+                        <option value="active">Active</option>
+                        <option value="expired">Expired</option>
+                    </select>
+                </div>
+                <div id="historyList" class="requests-list"></div>
+            </div>
+
+            <!-- Audit Logs View -->
+            <div id="auditView" class="view">
+                <h2>Audit Logs</h2>
+                <div class="filters">
+                    <input type="date" id="auditStartDate">
+                    <input type="date" id="auditEndDate">
+                    <button id="loadAuditLogs" class="btn btn-primary">Load Logs</button>
+                </div>
+                <div id="auditLogsList" class="audit-logs-list"></div>
+            </div>
+
+            <!-- Settings View -->
+            <div id="settingsView" class="view">
+                <h2>Settings</h2>
+                <div class="settings-section">
+                    <h3>Change Password</h3>
+                    <form id="changePasswordForm">
+                        <div class="form-group">
+                            <label>Current Password</label>
+                            <input type="password" id="oldPassword" required>
+                        </div>
+                        <div class="form-group">
+                            <label>New Password</label>
+                            <input type="password" id="newPassword" required minlength="8">
+                        </div>
+                        <button type="submit" class="btn btn-primary">Change Password</button>
+                    </form>
+                </div>
+                <div class="settings-section">
+                    <h3>Two-Factor Authentication</h3>
+                    <div id="2faStatus"></div>
+                    <div id="2faSetup" style="display: none;">
+                        <p>Scan this QR code with your authenticator app:</p>
+                        <img id="qrCode" alt="QR Code">
+                        <p>Or enter this key manually: <code id="manualKey"></code></p>
+                        <div class="form-group">
+                            <label>Enter 6-digit code to verify:</label>
+                            <input type="text" id="verify2FAToken" maxlength="6">
+                            <button id="enable2FABtn" class="btn btn-primary">Enable 2FA</button>
+                        </div>
+                    </div>
+                    <button id="generate2FABtn" class="btn btn-secondary" style="display: none;">Generate 2FA Secret</button>
+                    <button id="disable2FABtn" class="btn btn-danger" style="display: none;">Disable 2FA</button>
+                </div>
+            </div>
+        </main>
+    </div>
+    <script src="admin.js"></script>
+</body>
+</html>
+

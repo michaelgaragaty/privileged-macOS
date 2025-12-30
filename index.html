@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Temporary Admin Privileges</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="container">
+      <header>
+        <h1>🔐 Temporary Admin Privileges</h1>
+        <div id="user-info" class="user-info"></div>
+      </header>
+
+      <main>
+        <div id="admin-status" class="status-card"></div>
+
+        <div class="request-form" id="request-form">
+          <h2>Request Admin Privileges</h2>
+
+          <div class="form-group">
+            <label for="fullName">Full Name</label>
+            <input type="text" id="fullName" required />
+          </div>
+
+          <div class="form-group">
+            <label for="duration">Duration</label>
+            <select id="duration">
+              <option value="2">2 minutes</option>
+              <option value="5">5 minutes</option>
+              <option value="10">10 minutes</option>
+              <option value="20">20 minutes</option>
+              <option value="60">1 hour</option>
+              <option value="120">2 hours</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="reason">Reason for Request</label>
+            <textarea
+              id="reason"
+              rows="4"
+              required
+              placeholder="Please explain why you need admin privileges..."
+            ></textarea>
+          </div>
+
+          <button id="submit-request" class="btn btn-primary">
+            Submit Request
+          </button>
+        </div>
+
+        <div class="requests-section">
+          <h2>Your Requests</h2>
+          <div id="requests-list"></div>
+        </div>
+      </main>
+    </div>
+
+    <script src="renderer.js"></script>
+  </body>
+</html>
