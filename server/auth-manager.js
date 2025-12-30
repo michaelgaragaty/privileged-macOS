@@ -1,7 +1,7 @@
 /**
  * Authentication manager with password + optional 2FA/TOTP
  */
-const bcrypt = require("bcrypt");
+const bcrypt = require("bcryptjs");
 const speakeasy = require("speakeasy");
 const QRCode = require("qrcode");
 const fs = require("fs").promises;

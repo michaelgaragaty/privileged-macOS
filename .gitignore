@@ -1,6 +1,6 @@
 # Dependencies
 node_modules/
-.cursor/
+.cursor/commands/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
