@@ -1,4 +1,10 @@
-const { app, BrowserWindow, ipcMain, dialog, Notification } = require("electron");
+const {
+  app,
+  BrowserWindow,
+  ipcMain,
+  dialog,
+  Notification,
+} = require("electron");
 const path = require("path");
 const { spawn } = require("child_process");
 const fs = require("fs").promises;
@@ -21,7 +27,9 @@ function validateEnvironment() {
   const missing = required.filter((key) => !process.env[key]);
 
   if (missing.length > 0) {
-    errors.push(`Missing required environment variables: ${missing.join(", ")}`);
+    errors.push(
+      `Missing required environment variables: ${missing.join(", ")}`
+    );
   }
 
   // Validate SMTP_PORT is a number
@@ -107,10 +115,15 @@ async function restoreActivePrivileges() {
                 mainWindow.webContents.send("privileges-expired");
               }
             } catch (error) {
-              logger.error("Error removing privileges on expiration", { error: error.message, requestId: request.id });
+              logger.error("Error removing privileges on expiration", {
+                error: error.message,
+                requestId: request.id,
+              });
             }
           }, remaining);
-          logger.info(`Restored timer for request ${request.id}`, { expiresIn: Math.round(remaining / 1000) });
+          logger.info(`Restored timer for request ${request.id}`, {
+            expiresIn: Math.round(remaining / 1000),
+          });
         } else {
           // Already expired, remove immediately
           try {
@@ -119,13 +132,19 @@ async function restoreActivePrivileges() {
             await helper.removeUserFromAdminGroup(request.username);
             await updateRequestStatus(request.id, "expired");
           } catch (error) {
-            logger.error("Error removing expired privileges", { error: error.message, requestId: request.id });
+            logger.error("Error removing expired privileges", {
+              error: error.message,
+              requestId: request.id,
+            });
           }
         }
       }
     }
   } catch (error) {
-    logger.error("Error restoring active privileges", { error: error.message, stack: error.stack });
+    logger.error("Error restoring active privileges", {
+      error: error.message,
+      stack: error.stack,
+    });
   }
 }
 
@@ -135,7 +154,7 @@ app.whenReady().then(async () => {
     const { getConfig } = require("./server/config-manager");
     const config = getConfig();
     config.validate();
-    
+
     // Also run legacy validation
     validateEnvironment();
   } catch (error) {
@@ -185,7 +204,9 @@ function validateUsername(username) {
     throw new Error("Invalid username format");
   }
   if (!/^[a-zA-Z0-9_-]+$/.test(username)) {
-    throw new Error("Invalid username format. Only alphanumeric characters, dashes, and underscores are allowed.");
+    throw new Error(
+      "Invalid username format. Only alphanumeric characters, dashes, and underscores are allowed."
+    );
   }
 }
 
@@ -208,7 +229,9 @@ async function getGroupsForUser(username) {
       if (code === 0) {
         resolve({ stdout: output });
       } else {
-        reject(new Error(errorOutput || `groups command failed with code ${code}`));
+        reject(
+          new Error(errorOutput || `groups command failed with code ${code}`)
+        );
       }
     });
 
@@ -223,7 +246,7 @@ ipcMain.handle("get-user-info", async () => {
   try {
     const username = os.userInfo().username;
     validateUsername(username);
-    
+
     const { stdout: groups } = await getGroupsForUser(username);
     const isAdmin = groups.includes("admin");
 
@@ -233,7 +256,10 @@ ipcMain.handle("get-user-info", async () => {
       fullName: os.userInfo().username,
     };
   } catch (error) {
-    logger.error("Error getting user info", { error: error.message, stack: error.stack });
+    logger.error("Error getting user info", {
+      error: error.message,
+      stack: error.stack,
+    });
     throw error;
   }
 });
@@ -243,7 +269,7 @@ ipcMain.handle("check-admin-status", async () => {
   try {
     const username = os.userInfo().username;
     validateUsername(username);
-    
+
     const { stdout } = await getGroupsForUser(username);
     return stdout.includes("admin");
   } catch (error) {
@@ -318,7 +344,10 @@ ipcMain.handle("request-privileges", async (event, requestData) => {
 
     return { success: true, requestId: request.id };
   } catch (error) {
-    logger.error("Error submitting request", { error: error.message, stack: error.stack });
+    logger.error("Error submitting request", {
+      error: error.message,
+      stack: error.stack,
+    });
     throw error;
   }
 });
@@ -396,7 +425,10 @@ async function saveRequest(request) {
     await fs.writeFile(tempFile, JSON.stringify(requests, null, 2), "utf8");
     await fs.rename(tempFile, requestsFile);
   } catch (error) {
-    logger.error("Error saving request", { error: error.message, requestId: request.id });
+    logger.error("Error saving request", {
+      error: error.message,
+      requestId: request.id,
+    });
     throw error;
   } finally {
     // Always release the lock
@@ -477,34 +509,39 @@ async function updateRequestStatus(requestId, status, expiresAt = null) {
       await fs.rename(tempFile, requestsFile);
     }
 
-  // Notify renderer
-  if (mainWindow) {
-    mainWindow.webContents.send("request-status-updated", {
+    // Notify renderer
+    if (mainWindow) {
+      mainWindow.webContents.send("request-status-updated", {
+        requestId,
+        status,
+      });
+    }
+
+    // Send desktop notification
+    if (Notification.isSupported()) {
+      let title, body;
+      if (status === "approved") {
+        title = "Request Approved";
+        body =
+          "Your admin privilege request has been approved. You can now activate your privileges.";
+      } else if (status === "denied") {
+        title = "Request Denied";
+        body = "Your admin privilege request has been denied.";
+      } else if (status === "expired") {
+        title = "Privileges Expired";
+        body = "Your temporary admin privileges have expired and been removed.";
+      }
+
+      if (title && body) {
+        new Notification({ title, body }).show();
+      }
+    }
+  } catch (error) {
+    logger.error("Error updating request status", {
+      error: error.message,
       requestId,
       status,
     });
-  }
-
-  // Send desktop notification
-  if (Notification.isSupported()) {
-    let title, body;
-    if (status === "approved") {
-      title = "Request Approved";
-      body = "Your admin privilege request has been approved. You can now activate your privileges.";
-    } else if (status === "denied") {
-      title = "Request Denied";
-      body = "Your admin privilege request has been denied.";
-    } else if (status === "expired") {
-      title = "Privileges Expired";
-      body = "Your temporary admin privileges have expired and been removed.";
-    }
-
-    if (title && body) {
-      new Notification({ title, body }).show();
-    }
-  }
-  } catch (error) {
-    logger.error("Error updating request status", { error: error.message, requestId, status });
     throw error;
   } finally {
     if (release) {
@@ -559,7 +596,11 @@ ipcMain.handle("grant-privileges", async (event, requestId) => {
 
     return { success: true, expiresAt: expiresAt.toISOString() };
   } catch (error) {
-    logger.error("Error granting privileges", { error: error.message, requestId, stack: error.stack });
+    logger.error("Error granting privileges", {
+      error: error.message,
+      requestId,
+      stack: error.stack,
+    });
     throw error;
   }
 });
@@ -579,7 +620,10 @@ async function sendRequestEmail(request) {
   const TokenManager = require("./server/token-manager");
   const tokenManager = TokenManager.getTokenManager();
 
-  const approvalTokenData = tokenManager.generateSecureToken(request.id, "approve");
+  const approvalTokenData = tokenManager.generateSecureToken(
+    request.id,
+    "approve"
+  );
   const denyTokenData = tokenManager.generateSecureToken(request.id, "deny");
 
   const approvalUrl = `${APP_SERVER_URL}/approve?token=${approvalTokenData.token}`;
@@ -628,7 +672,11 @@ async function sendRequestEmail(request) {
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <h2>Temporary Admin Privileges Request</h2>
         <p>A new temporary admin privilege request has been submitted:</p>
-        <pre style="background: #f5f5f5; padding: 15px; border-radius: 5px;">${JSON.stringify(payload, null, 2)}</pre>
+        <pre style="background: #f5f5f5; padding: 15px; border-radius: 5px;">${JSON.stringify(
+          payload,
+          null,
+          2
+        )}</pre>
         <h3>Quick Actions</h3>
         <p>Tokens expire in 15 minutes.</p>
         <p>

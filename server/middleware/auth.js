@@ -32,4 +32,3 @@ function requireGuest(req, res, next) {
 }
 
 module.exports = { requireAuth, requireGuest };
-
