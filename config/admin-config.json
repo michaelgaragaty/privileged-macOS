@@ -1,0 +1,6 @@
+{
+  "passwordHash": "$2a$10$wOuyza9AW4nDdlNmRn3cuOHrFUz1JkwPJmULJ7AEQwd7bG0jdv7Qy",
+  "twoFactorEnabled": false,
+  "twoFactorSecret": null,
+  "twoFactorBackupCodes": []
+}

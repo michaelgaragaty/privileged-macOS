@@ -12,10 +12,22 @@ const os = require("os");
 const crypto = require("crypto");
 const nodemailer = require("nodemailer");
 const lockfile = require("proper-lockfile");
-const logger = require("./server/logger");
 
-// Load environment variables
-require("dotenv").config();
+// Load environment variables FIRST - before any other modules that might use them
+// Use explicit path to ensure .env is found
+const envPath = path.join(__dirname, ".env");
+const dotenvResult = require("dotenv").config({ path: envPath });
+if (dotenvResult.error) {
+  console.warn(
+    `Warning: Could not load .env file from ${envPath}:`,
+    dotenvResult.error.message
+  );
+} else {
+  console.log(`✓ Loaded .env file from ${envPath}`);
+}
+
+// Now require logger (which depends on config-manager, which needs env vars)
+const logger = require("./server/logger");
 
 let mainWindow;
 let approvalServer;
