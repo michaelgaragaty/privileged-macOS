@@ -1,6 +1,6 @@
 {
-  "passwordHash": "$2a$10$wOuyza9AW4nDdlNmRn3cuOHrFUz1JkwPJmULJ7AEQwd7bG0jdv7Qy",
-  "twoFactorEnabled": true,
-  "twoFactorSecret": "LMZGE6DYPNIFKPCUFZCXU5C5K4VHQQCVIZ6SYQTJFI6DAWDBH5TQ",
+  "passwordHash": "$2a$10$rGZESjPGdbgZ/x1CBdy66uDc0Xm23OiUCeGDQuy4BP761cQel029i",
+  "twoFactorEnabled": false,
+  "twoFactorSecret": null,
   "twoFactorBackupCodes": []
 }
